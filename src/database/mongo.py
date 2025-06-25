@@ -1,12 +1,22 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 
-mongo_client = None
+_mongo_client = None
+
+def get_mongo_client():
+    if _mongo_client is None:
+        raise RuntimeError("Mongo client not initialized. Call connect_to_mongo() first.")
+    return _mongo_client
 
 async def connect_to_mongo():
-    global mongo_client
+    global _mongo_client
     mongo_url = os.getenv("MONGO_URL", "mongodb://localhost:27017")
-    mongo_client = AsyncIOMotorClient(mongo_url)
+    print(f"🔌 Connecting to MongoDB at: {mongo_url}")
+    _mongo_client = AsyncIOMotorClient(mongo_url)
+    print("✅ MongoDB connected")
 
 async def close_mongo_connection():
-    mongo_client.close()
+    global _mongo_client
+    if _mongo_client:
+        _mongo_client.close()
+        print("🔌 MongoDB connection closed")

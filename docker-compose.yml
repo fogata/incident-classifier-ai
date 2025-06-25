@@ -1,19 +1,21 @@
-version: '3.8'
-
 services:
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: incident_classifier_api
     ports:
       - "8000:8000"
     volumes:
       - .:/app
-    environment:
-      - MONGO_URL=mongodb://mongo:27017
-      - REDIS_URL=redis://redis:6379
+    env_file:
+      - .env
     depends_on:
       - mongo
       - redis
+      - mlflow
+    command: >
+      uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 
   mongo:
     image: mongo:6.0
@@ -29,5 +31,17 @@ services:
     ports:
       - "6379:6379"
 
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: incident_classifier_mlflow
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://0.0.0.0:5000
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlflow --default-artifact-root /mlflow
+    volumes:
+      - mlflow_data:/mlflow
+
 volumes:
   mongo_data:
+  mlflow_data:
