@@ -5,3 +5,6 @@ mlruns/
 venv/
 .idea/
 *.ipynb_checkpoints
+# Ignore local datasets
+/data/
+

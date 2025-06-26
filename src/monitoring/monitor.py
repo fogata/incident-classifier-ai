@@ -1,43 +1,44 @@
 import os
 import pandas as pd
+import asyncio
+from datetime import datetime, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime
-from evidently.report import Report
-from evidently.metric_preset import DataDriftPreset
 
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+from evidently import Report
+from evidently.presets import DataDriftPreset, DataSummaryPreset  
+
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://mongo:27017")
+DB_NAME = "incident_db"
+COLLECTION_NAME = "incidents"
+REPORT_OUTPUT = "reports/evidently_report.html"
 
 async def load_data():
     client = AsyncIOMotorClient(MONGO_URL)
-    collection = client["incident_db"]["incidents"]
-    cursor = collection.find({}, {
-        "description": 1,
-        "predicted_category": 1,
-        "timestamp": 1,
-        "_id": 0
-    })
-    docs = await cursor.to_list(length=1000)
-    client.close()
-    return pd.DataFrame(docs)
+    db = client[DB_NAME]
+    collection = db[COLLECTION_NAME]
 
-def run_drift_analysis(df: pd.DataFrame):
-    # Dividir base em referência e produção simulada
-    if df.empty or len(df) < 10:
-        print("⚠️ Not enough data to analyze.")
+    recent_date = datetime.utcnow() - timedelta(days=7)
+    cursor = collection.find({"timestamp": {"$gte": recent_date}})
+    incidents = await cursor.to_list(length=1000)
+
+    if not incidents:
+        print("❌ No data available to generate report.")
+        return None
+
+    df = pd.DataFrame(incidents)
+    if "_id" in df.columns:
+        df.drop(columns=["_id"], inplace=True)
+    return df
+
+async def run_monitoring():
+    df = await load_data()
+    if df is None or df.empty:
         return
 
-    # Ordenar por timestamp e dividir
-    df_sorted = df.sort_values("timestamp")
-    midpoint = len(df_sorted) // 2
-    reference = df_sorted.iloc[:midpoint]
-    current = df_sorted.iloc[midpoint:]
-
-    report = Report(metrics=[DataDriftPreset()])
-    report.run(reference_data=reference, current_data=current)
-    report.save_html("evidently_report.html")
-    print("✅ Evidently report saved to evidently_report.html")
+    report = Report(metrics=[DataDriftPreset(), DataSummaryPreset()])
+    report.run(current_data=df)
+    report.save_html(REPORT_OUTPUT)
+    print(f"📊 Evidently report saved to: {REPORT_OUTPUT}")
 
 if __name__ == "__main__":
-    import asyncio
-    df = asyncio.run(load_data())
-    run_drift_analysis(df)
+    asyncio.run(run_monitoring())

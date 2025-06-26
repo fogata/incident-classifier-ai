@@ -1,19 +1,22 @@
-# Dockerfile
-
 FROM python:3.11-slim
 
-# Set work directory
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Copy all project files
+
 COPY . .
 
-# Install dependencies
-RUN pip install --upgrade pip && pip install -r requirements.txt
-RUN pip install ./evidently
 
-# Expose API port
+RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+
+
 EXPOSE 8000
 
-# Run the app
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
